@@ -7,6 +7,13 @@
  */
 
 // ============================================================================
+// MUSIC THEORY
+// ============================================================================
+
+export const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+export const SCALES = ['CHROMATIC', 'MAJOR', 'MINOR', 'MINOR_HARMONIC', 'PENTATONIC'];
+
+// ============================================================================
 // AUDIO CONFIGURATION
 // ============================================================================
 
@@ -70,49 +77,15 @@ export const UI_CONFIG = {
 // ============================================================================
 
 export const PLUGIN_CONSTANTS = {
-  // Compressor
-  COMPRESSOR_DEFAULTS: {
-    threshold: -20,
-    ratio: 4,
-    attack: 10,
-    release: 100,
-    knee: 6,
-    mix: 100,
-    autoMakeup: true,
-    analogMode: false,
-  },
-
-  // Reverb
-  REVERB_DEFAULTS: {
-    mode: 'HALL' as const,
-    decay: 1.5,
-    preDelay: 30,
-    damping: 10000,
-    size: 0.7,
-    width: 1.0,
-    mix: 0.3,
-  },
-
-  // Delay
-  DELAY_DEFAULTS: {
-    division: '1/4' as const,
-    feedback: 0.3,
-    mix: 0.3,
-    damping: 12000,
-    mode: 'STEREO' as const,
-    modulation: 0,
-    duck: 0,
-  },
-
-  // Latency (ms)
+  // Latency (ms) - Keeping for reference although plugins are disabled
   PLUGIN_LATENCY: {
-    COMPRESSOR: 3,
+    COMPRESSOR: 0,
     REVERB: 0,
     DELAY: 0,
     PROEQ12: 0,
-    LIMITER: 1,
+    LIMITER: 0,
     GATE: 0,
-    SATURATOR: 2,
+    SATURATOR: 0,
   },
 } as const;
 

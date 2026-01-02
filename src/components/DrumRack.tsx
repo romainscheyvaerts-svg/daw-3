@@ -72,8 +72,8 @@ const DrumRack: React.FC<DrumRackProps> = ({ track, onUpdateTrack }) => {
                 // Create object URL for immediate use, but logic should handle saving for persistence
                 audioRef = URL.createObjectURL(file); // Temporary Blob URL
                 
-                // If the app supports uploading to engine directly
-                if (window.DAW_CONTROL.loadDrumSample) {
+                // FIX 3.3: Accès sécurisé
+                if (window.DAW_CONTROL?.loadDrumSample) {
                     window.DAW_CONTROL.loadDrumSample(track.id, padId, file);
                     return; // loadDrumSample handles state update in App.tsx
                 }

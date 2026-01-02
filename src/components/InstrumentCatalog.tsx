@@ -72,36 +72,53 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
     stopAllPlayback();
   }, [audioMode]);
 
+  // --- STOP LOGIC (ANTI-ABORT ERROR) ---
   const stopAllPlayback = () => {
     if (audioRef.current) {
         const audio = audioRef.current;
-        // Safe Pause Handling
+        audio.onended = null;
+        audio.onerror = null;
+
+        // Si une lecture est en cours de chargement (Promesse non résolue)
         if (playPromiseRef.current) {
-            playPromiseRef.current.then(() => {
-                audio.pause();
-                audio.currentTime = 0;
-            }).catch(e => {
-                // Ignore AbortError here as it means we interrupted correctly
-            });
+            playPromiseRef.current
+                .then(() => {
+                    try { 
+                        audio.pause(); 
+                        audio.currentTime = 0; 
+                    } catch(e) {}
+                })
+                .catch(e => {
+                    // On ignore l'AbortError car c'est ce qu'on voulait
+                });
         } else {
-            audio.pause();
-            audio.currentTime = 0;
+            // Lecture établie, on coupe direct
+            try { 
+                audio.pause(); 
+                audio.currentTime = 0; 
+            } catch(e) {}
         }
+        
         audioRef.current = null;
+        playPromiseRef.current = null;
     }
+    
+    // Stop WebAudio Engine as well
     audioEngine.stopPreview();
     setPlayingId(null);
   };
 
+  // --- PLAY LOGIC (SUPABASE STORAGE) ---
   const togglePlay = async (beat: Instrument, e: React.MouseEvent) => {
     e.stopPropagation();
     
+    // Si on clique sur le même beat qui joue, on stop
     if (playingId === beat.id) {
         stopAllPlayback();
         return;
     }
 
-    // Stop previous track
+    // Arrêt propre de la piste précédente
     stopAllPlayback();
     
     if (!beat.preview_url) {
@@ -109,48 +126,53 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
         return;
     }
 
+    // 1. OBTENIR L'URL DIRECTE DU BUCKET
+    const url = supabaseManager.getPublicInstrumentUrl(beat.preview_url);
+
     setPlayingId(beat.id);
 
     if (audioMode === 'STANDARD') {
-        const audio = new Audio(beat.preview_url);
+        const audio = new Audio(url);
         audio.volume = 0.8;
+        // Important pour éviter les erreurs CORS si configuré dans Supabase
         audio.crossOrigin = "anonymous"; 
-        audioRef.current = audio;
+        
         audio.onended = () => setPlayingId(null);
+        audio.onerror = (e) => {
+             console.error("Standard Playback Error:", e);
+             setPlayingId(null);
+        };
+        
+        audioRef.current = audio;
         
         try {
             const promise = audio.play();
             playPromiseRef.current = promise;
             await promise;
         } catch (err: any) {
+            // L'erreur AbortError est normale si on a cliqué vite sur un autre bouton
             if (err.name === 'AbortError') return;
-            console.error("Standard Playback Error:", err);
+            console.error("Play Promise Error:", err);
             setPlayingId(null);
         }
     } else {
+        // Mode STUDIO (Web Audio API)
         try {
-            await audioEngine.playHighResPreview(beat.preview_url);
+            await audioEngine.playHighResPreview(url, () => {
+                setPlayingId(null);
+            });
             startVisualizer();
         } catch (err) {
-            console.error("Studio Mode failed, falling back to Standard", err);
-            
-            // Fallback to Standard
+            console.error("Studio Mode failed, switching to Standard", err);
+            // Fallback automatique
             setAudioMode('STANDARD');
+            audioEngine.stopPreview();
             
-            const audio = new Audio(beat.preview_url);
-            audioRef.current = audio;
+            // Retry en mode standard
+            const audio = new Audio(url);
             audio.onended = () => setPlayingId(null);
-            
-            try {
-                const promise = audio.play();
-                playPromiseRef.current = promise;
-                await promise;
-            } catch (innerErr: any) {
-                if (innerErr.name !== 'AbortError') {
-                    console.error("Fallback Playback Error:", innerErr);
-                    setPlayingId(null);
-                }
-            }
+            audioRef.current = audio;
+            audio.play().catch(e => console.error("Fallback Error", e));
         }
     }
   };
@@ -201,7 +223,8 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
   };
 
   const handleDragStart = (e: React.DragEvent, inst: Instrument) => {
-      e.dataTransfer.setData('audio-url', inst.preview_url); // Uses full URL from 'instruments' bucket
+      const safeUrl = supabaseManager.getPublicInstrumentUrl(inst.preview_url);
+      e.dataTransfer.setData('audio-url', safeUrl); 
       e.dataTransfer.setData('audio-name', inst.name);
       e.dataTransfer.setData('instrument-id', inst.id.toString());
       e.dataTransfer.setData('audio-bpm', inst.bpm.toString());
@@ -233,7 +256,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
 
   const handleStripeBuy = async (licenseType: 'BASIC' | 'PREMIUM' | 'EXCLUSIVE') => {
       if (!user || !selectedBeat) return;
-      
       if (licenseType === 'BASIC' && selectedBeat.stripe_link_basic) window.open(selectedBeat.stripe_link_basic, '_blank');
       else if (licenseType === 'PREMIUM' && selectedBeat.stripe_link_premium) window.open(selectedBeat.stripe_link_premium, '_blank');
       else if (licenseType === 'EXCLUSIVE' && selectedBeat.stripe_link_exclusive) window.open(selectedBeat.stripe_link_exclusive, '_blank');
@@ -258,7 +280,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
         />
       )}
 
-      {/* Header Compact */}
       <div className="p-4 border-b border-white/5 bg-[#08090b] sticky top-0 z-20 space-y-3">
         <div className="flex justify-between items-center">
           <div>
@@ -274,7 +295,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
         </div>
       </div>
 
-      {/* WAVEFORM VISUALIZER (STUDIO MODE ONLY) */}
       {audioMode === 'STUDIO' && playingId && (
          <div className="h-12 bg-black/20 border-b border-white/5 relative overflow-hidden">
              <canvas ref={canvasRef} width={300} height={48} className="w-full h-full opacity-60" />
@@ -282,7 +302,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
          </div>
       )}
 
-      {/* List View Compact */}
       <div className="flex-1 overflow-y-auto custom-scroll">
         {loading ? (
           <div className="flex justify-center items-center py-10">
@@ -297,7 +316,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
                 onDragStart={(e) => handleDragStart(e, inst)}
                 className={`group flex items-center p-3 border-b border-white/5 hover:bg-white/[0.03] transition-colors cursor-grab active:cursor-grabbing relative ${playingId === inst.id ? 'bg-white/[0.05]' : ''}`}
               >
-                {/* Cover & Play */}
                 <div className="relative w-10 h-10 shrink-0 mr-3">
                     <img src={inst.image_url} alt={inst.name} className="w-full h-full object-cover rounded-md opacity-80 group-hover:opacity-100" />
                     <button 
@@ -312,7 +330,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
                     </button>
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0 pr-2">
                     <div className="flex items-center space-x-2">
                         <h3 className={`text-[10px] font-bold truncate ${playingId === inst.id ? 'text-cyan-400' : 'text-white'}`}>{inst.name}</h3>
@@ -325,7 +342,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
                     </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex flex-col items-end space-y-1">
                     <span className="text-[9px] font-mono text-cyan-400">${inst.price_basic}</span>
                     <button 
@@ -346,7 +362,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
         )}
       </div>
 
-      {/* LICENSE MODAL (Fixed Overlay) */}
       {selectedBeat && (
         createPortal(
             <div 
@@ -357,7 +372,6 @@ const InstrumentCatalog: React.FC<InstrumentCatalogProps> = ({ user, onPurchase 
                     className="bg-[#14161a] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row relative"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* BOUTON FERMETURE AVEC Z-INDEX ÉLEVÉ */}
                     <button 
                         onClick={() => { if(!processingPayment) setSelectedBeat(null); }} 
                         className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center bg-black/50 rounded-full text-slate-400 hover:text-white hover:bg-red-500/80 transition-all"

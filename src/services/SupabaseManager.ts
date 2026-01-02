@@ -1,6 +1,6 @@
 
 import { supabase } from './supabase';
-import { User, DAWState, Clip, Instrument, PendingUpload, Track } from '../types';
+import { User, DAWState, PendingUpload, Instrument } from '../types';
 import { audioBufferToWav } from './AudioUtils';
 import { audioEngine } from '../engine/AudioEngine';
 import { SessionSerializer } from './SessionSerializer';
@@ -11,10 +11,9 @@ export class SupabaseManager {
   
   // Auto-Save State
   private autoSaveIntervalId: number | null = null;
-  private uploadedBlobsCache: Map<string, string> = new Map(); // Cache local: BlobURL -> RemoteURL
+  private uploadedBlobsCache: Map<string, string> = new Map();
 
   private constructor() {
-    // Écouteur d'état de session au démarrage
     if (supabase) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         this.currentUser = session?.user || null;
@@ -34,8 +33,33 @@ export class SupabaseManager {
   }
 
   /**
-   * Nettoie une chaîne pour en faire un nom de fichier sûr pour le Storage.
-   * Minuscules, alphanumérique et tirets uniquement.
+   * ACCÈS DIRECT STORAGE SUPABASE
+   * Récupère l'URL publique d'un fichier dans le bucket 'instruments'.
+   * Gère les chemins relatifs (stockés en DB) ou les URLs complètes.
+   */
+  public getPublicInstrumentUrl(pathOrUrl: string): string {
+    if (!pathOrUrl) return '';
+    
+    // Si c'est déjà une URL complète (Blob local ou HTTPS externe comme Drive/Edge Function), on la retourne telle quelle
+    if (pathOrUrl.startsWith('http') || pathOrUrl.startsWith('blob:')) {
+        return pathOrUrl;
+    }
+
+    // Sinon, on génère l'URL publique depuis le bucket 'instruments'
+    if (supabase) {
+        const { data } = supabase.storage.from('instruments').getPublicUrl(pathOrUrl);
+        
+        // DEBUG: Vérifiez cette ligne dans la console si l'erreur persiste
+        // console.log("Generated Supabase URL:", data.publicUrl);
+        
+        return data.publicUrl;
+    }
+
+    return pathOrUrl;
+  }
+
+  /**
+   * Nettoie une chaîne pour en faire un nom de fichier sûr.
    */
   private sanitizeFilename(name: string): string {
       return name.toLowerCase().replace(/[^a-z0-9\-_]/g, '_').replace(/_+/g, '_');
@@ -194,7 +218,7 @@ export class SupabaseManager {
     }
   }
 
-  // --- GUEST SAVE ---
+  // --- GESTION DES SESSIONS UTILISATEUR (CLOUD SAVE MANUEL) ---
 
   public async saveUserSession(state: DAWState, onProgress?: (percent: number, message: string) => void) {
     if (!supabase) throw new Error("Supabase non configuré");
@@ -369,6 +393,9 @@ export class SupabaseManager {
       }
   }
 
+  /**
+   * SAUVEGARDER SOUS (SAVE AS COPY)
+   */
   public async saveProjectAsCopy(state: DAWState, newName: string) {
     if (!supabase) throw new Error("Supabase non configuré");
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -397,6 +424,8 @@ export class SupabaseManager {
 
     return data;
   }
+
+  // ... (Reste des méthodes inchangées : listUserSessions, loadUserSession, hydrateAudioBuffers, etc.)
 
   public async listUserSessions() {
     if (!supabase || !this.currentUser) return [];
@@ -461,13 +490,13 @@ export class SupabaseManager {
           
           // 2. Hydrate Drum Pads
           if (track.type === 'DRUM_RACK' && track.drumPads) {
-              track.drumPads.forEach((pad => {
+              track.drumPads.forEach(pad => {
                   if (pad.audioRef && !pad.buffer) {
                       promises.push(this.fetchAndDecode(pad.audioRef).then(buf => {
                           if (buf) pad.buffer = buf;
                       }));
                   }
-              }));
+              });
           }
       });
 
@@ -498,24 +527,21 @@ export class SupabaseManager {
   public async getPendingUploads(): Promise<PendingUpload[]> {
     if (!supabase) return [];
     const { data, error } = await supabase.from('pending_uploads').select('*').eq('is_processed', false).order('created_at', { ascending: false });
-    if (error) { 
-        console.error("Erreur récupération pending uploads:", error.message || error); 
-        return []; 
-    }
+    if (error) { console.error("Erreur récupération pending uploads:", error); return []; }
     return data as PendingUpload[];
   }
 
   public async markUploadAsProcessed(ids: number[]) {
       if (!supabase || ids.length === 0) return;
       const { error } = await supabase.from('pending_uploads').update({ is_processed: true }).in('id', ids);
-      if (error) { console.error("Erreur mise à jour pending uploads:", error.message || error); throw error; }
+      if (error) { console.error("Erreur mise à jour pending uploads:", error); throw error; }
   }
 
   public async checkUserLicense(instrumentId: number): Promise<boolean> {
     if (!supabase || !this.currentUser) return false;
     try {
       const { data, error } = await supabase.from('user_licenses').select('id').eq('user_id', this.currentUser.id).eq('instrument_id', instrumentId).maybeSingle();
-      if (error) { console.error("Erreur vérification licence:", error.message || error); return false; }
+      if (error) { console.error("Erreur vérification licence:", error); return false; }
       return !!data; 
     } catch (e) { console.error("Exception vérification licence:", e); return false; }
   }
@@ -556,7 +582,7 @@ export class SupabaseManager {
     const path = `${this.currentUser.id}/${safeProjectName}/${safeFilename}`;
     const BUCKET_NAME = 'audio-files'; 
     const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(path, file, { cacheControl: '3600', upsert: true });
-    if (error) { console.error("Erreur Upload Storage:", error.message || error); throw error; }
+    if (error) { console.error("Erreur Upload Storage:", error); throw error; }
     const { data: publicUrlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
     return publicUrlData.publicUrl;
   }
@@ -569,7 +595,7 @@ export class SupabaseManager {
     const path = `${folder}/${filename}`;
     const BUCKET_NAME = 'instruments'; 
     const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(path, file, { cacheControl: '3600', upsert: false });
-    if (error) { console.error(`Erreur upload ${folder}:`, error.message || error); throw error; }
+    if (error) { console.error(`Erreur upload ${folder}:`, error); throw error; }
     const { data: publicUrlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
     return publicUrlData.publicUrl;
   }
@@ -577,31 +603,28 @@ export class SupabaseManager {
   public async addInstrument(instrument: Omit<Instrument, 'id' | 'created_at'>) {
     if (!supabase) throw new Error("Supabase non configuré");
     const { data, error } = await supabase.from('instruments').insert([instrument]).select();
-    if (error) { console.error("Erreur insertion beat:", error.message || error); throw error; }
+    if (error) { console.error("Erreur insertion beat:", error); throw error; }
     return data;
   }
 
   public async updateInstrument(id: number, updates: Partial<Instrument>) {
     if (!supabase) throw new Error("Supabase non configuré");
     const { data, error } = await supabase.from('instruments').update(updates).eq('id', id).select();
-    if (error) { console.error("Erreur mise à jour beat:", error.message || error); throw error; }
+    if (error) { console.error("Erreur mise à jour beat:", error); throw error; }
     return data;
   }
 
   public async getInstruments(): Promise<Instrument[]> {
     if (!supabase) return [];
     const { data, error } = await supabase.from('instruments').select('*').order('created_at', { ascending: false });
-    if (error) { 
-        console.error("Erreur lecture catalogue:", error.message || error); 
-        return []; 
-    }
+    if (error) { console.error("Erreur lecture catalogue:", error); throw error; }
     return data as Instrument[];
   }
 
   public async getInstrumentById(id: number): Promise<Instrument | null> {
     if (!supabase) return null;
     const { data, error } = await supabase.from('instruments').select('*').eq('id', id).single();
-    if (error) { console.error("Erreur lecture instrument:", error.message || error); return null; }
+    if (error) { console.error("Erreur lecture instrument:", error); return null; }
     return data as Instrument;
   }
 

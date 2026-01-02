@@ -72,7 +72,8 @@ export interface PendingUpload {
 
 export type AuthStage = 'LOGIN' | 'REGISTER' | 'VERIFY_EMAIL' | 'FORGOT_PASSWORD';
 
-export type PluginType = 'REVERB' | 'DELAY' | 'CHORUS' | 'FLANGER' | 'DOUBLER' | 'STEREOSPREADER' | 'COMPRESSOR' | 'COMPRESSOR_PRO' | 'AUTOTUNE' | 'DEESSER' | 'DENOISER' | 'PROEQ12' | 'VOCALSATURATOR' | 'MASTERSYNC' | 'VST3' | 'SAMPLER' | 'DRUM_SAMPLER' | 'MELODIC_SAMPLER' | 'DRUM_RACK_UI';
+// NETTOYAGE : Suppression des types d'effets internes
+export type PluginType = 'VST3' | 'SAMPLER' | 'DRUM_SAMPLER' | 'MELODIC_SAMPLER' | 'DRUM_RACK_UI';
 
 export interface PluginMetadata {
   id: string;
@@ -144,18 +145,17 @@ export interface AutomationLane {
   max: number;
 }
 
-// DRUM RACK SPECIFIC INTERFACES
 export interface DrumPad {
-  id: number; // 1 to 30
+  id: number; 
   name: string;
   sampleName: string;
-  volume: number; // 0 to 1
-  pan: number; // -1 to 1
+  volume: number; 
+  pan: number; 
   isMuted: boolean;
   isSolo: boolean;
-  midiNote: number; // 60 + (id - 1)
+  midiNote: number; 
   buffer?: AudioBuffer;
-  audioRef?: string; // URL for persistence
+  audioRef?: string; 
 }
 
 export interface Track {
@@ -169,7 +169,7 @@ export interface Track {
   isFrozen: boolean;
   volume: number;
   pan: number;
-  inputDeviceId?: string; // ID du micro
+  inputDeviceId?: string; 
   outputTrackId: string;  
   instrumentId?: number; 
   sends: TrackSend[];
@@ -178,7 +178,7 @@ export interface Track {
   automationLanes: AutomationLane[];
   totalLatency: number;
   events?: any[]; 
-  drumPads?: DrumPad[]; // Only for DRUM_RACK tracks
+  drumPads?: DrumPad[]; 
 }
 
 export interface DAWState {
@@ -201,7 +201,7 @@ export interface DAWState {
   isRecModeActive: boolean;
   systemMaxLatency: number; 
   recStartTime: number | null;
-  isDelayCompEnabled: boolean; // PDC State
+  isDelayCompEnabled: boolean;
 }
 
 export interface ContextMenuItem {

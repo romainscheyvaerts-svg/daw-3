@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TrackType, PluginType } from '../types';
 
@@ -9,11 +8,6 @@ interface TrackCreationBarProps {
 const TrackCreationBar: React.FC<TrackCreationBarProps> = ({ onCreateTrack }) => {
   const trackTypes = [
     { type: TrackType.AUDIO, icon: 'fa-wave-square', label: 'Audio', name: 'New Audio' },
-    { type: TrackType.DRUM_RACK, icon: 'fa-th', label: 'Drum Rack', name: 'Drum Rack' },
-    // Bouton spécifique pour le Drum Sampler (Single Shot)
-    { type: TrackType.SAMPLER, icon: 'fa-bullseye', label: 'Drum Shot', name: 'Drum Sampler', plugin: 'DRUM_SAMPLER' as PluginType },
-    // Bouton spécifique pour le Melodic Sampler (Keys)
-    { type: TrackType.SAMPLER, icon: 'fa-keyboard', label: 'Melodic', name: 'Melodic Sampler', plugin: 'MELODIC_SAMPLER' as PluginType },
     { type: TrackType.BUS, icon: 'fa-layer-group', label: 'Bus', name: 'New Bus' },
     { type: TrackType.SEND, icon: 'fa-share-alt', label: 'Send', name: 'New Send' },
   ];

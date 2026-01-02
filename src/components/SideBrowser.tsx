@@ -47,10 +47,8 @@ const SideBrowser: React.FC<SideBrowserProps> = ({
     };
   }, []);
 
-  // Auto-refresh plugins when opening Nova tab
   useEffect(() => {
       if (activeTab === 'nova') {
-          // Petit délai pour s'assurer que la connexion est prête si on vient de charger la page
           setTimeout(() => novaBridge.requestPlugins(), 100);
       }
   }, [activeTab]);
@@ -68,7 +66,7 @@ const SideBrowser: React.FC<SideBrowserProps> = ({
   }, [searchTerm, activeTab]);
 
   useEffect(() => {
-    if ((activeTab === 'nova') && shouldFocusSearch) {
+    if (activeTab === 'nova' && shouldFocusSearch) {
       searchInputRef.current?.focus();
       if (shouldFocusSearch && onSearchFocused) onSearchFocused();
     }
@@ -118,7 +116,7 @@ const SideBrowser: React.FC<SideBrowserProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#08090b] border-r border-white/5 shadow-2xl overflow-hidden">
-      {/* HEADER TABS */}
+      {/* HEADER TABS - INTERNAL REMOVED */}
       <div className="flex bg-black/40 border-b border-white/5">
         <button onClick={() => setActiveTab('local')} className={`flex-1 py-3 text-[9px] font-black uppercase transition-all ${activeTab === 'local' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}>
           Local

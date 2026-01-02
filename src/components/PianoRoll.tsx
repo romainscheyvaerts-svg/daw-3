@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Track, Clip, MidiNote, EditorTool, TrackType } from '../types';
-import { NOTES } from '../plugins/AutoTunePlugin';
+import { NOTES } from '../utils/constants';
 import { audioEngine } from '../engine/AudioEngine';
 
 interface PianoRollProps {
@@ -22,6 +22,10 @@ type DragMode = 'MOVE' | 'RESIZE_R' | 'VELOCITY' | 'SELECT' | 'DRAW' | null;
 
 const PianoRoll: React.FC<PianoRollProps> = ({ track, clipId, bpm, currentTime, onUpdateTrack, onClose }) => {
   const clipIndex = track.clips.findIndex(c => c.id === clipId);
+  // FIX 3.2: Vérification si le clip existe
+  if (clipIndex === -1) {
+      return <div className="flex items-center justify-center h-full text-slate-500">Clip introuvable ou supprimé.</div>;
+  }
   const clip = track.clips[clipIndex];
   
   const isDrumMode = track.type === TrackType.DRUM_RACK;
