@@ -187,7 +187,8 @@ export class AudioEngine {
 
   private createPluginNode(plugin: PluginInstance) {
       if (!this.ctx) return null;
-      return null; // Plus aucun plugin interne n'est créé
+      // TOUS LES PLUGINS INTERNES SONT SUPPRIMÉS - RENVOIE NULL
+      return null;
   }
 
   public getPluginNodeInstance(trackId: string, pluginId: string) { 

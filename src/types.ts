@@ -72,7 +72,7 @@ export interface PendingUpload {
 
 export type AuthStage = 'LOGIN' | 'REGISTER' | 'VERIFY_EMAIL' | 'FORGOT_PASSWORD';
 
-// NETTOYAGE : Suppression des types d'effets internes
+// NETTOYAGE : Suppression des types d'effets internes (Reverb, Delay, etc.)
 export type PluginType = 'VST3' | 'SAMPLER' | 'DRUM_SAMPLER' | 'MELODIC_SAMPLER' | 'DRUM_RACK_UI';
 
 export interface PluginMetadata {
